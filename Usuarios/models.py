@@ -1,81 +1,95 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
-# Se asume que los siguientes modelos existen en una aplicación llamada 'clinica'
-# from clinica.models import Especialidad, Consultorio
+# --- Modelos de Soporte (Clínica) ---
+# En un proyecto real, estos modelos estarían en su propia aplicación (ej. 'clinica')
+# y se importarían aquí.
 
-# Para mantener el ejemplo autocontenido, se definen aquí temporalmente.
-# En el proyecto real, estas clases estarían en clinica/models.py y se importarían.
 class Especialidad(models.Model):
-    ID_Especialidad = models.AutoField(primary_key=True)
-    Nombre = models.CharField(max_length=100) 
+    """Almacena las diferentes especialidades médicas."""
+    # Django crea un campo 'id' como AutoField y primary_key por defecto.
+    nombre = models.CharField(max_length=100, unique=True) 
 
     def __str__(self):
-        return self.Nombre
+        return self.nombre
 
 class Consultorio(models.Model):
-    ID_Consultorio = models.AutoField(primary_key=True)
-    Nivel = models.CharField(max_length=50)
+    """Representa un consultorio físico en la clínica."""
+    # Django crea un campo 'id' como AutoField y primary_key por defecto.
+    nivel = models.CharField(max_length=50)
+    numero_identificador = models.CharField(max_length=50, help_text="Ej: 'Piso 2, Puerta 5B'")
 
     def __str__(self):
-        return self.Nivel
+        return self.numero_identificador
+
+
+# --- Modelos Principales (Usuarios y Perfiles) ---
 
 class Usuario(AbstractUser):
     """
-    Modelo de Usuario personalizado que extiende el de Django.
-    Gestiona el acceso al sistema, roles y autenticación.
+    Modelo de Usuario personalizado. Gestiona el acceso al sistema, roles y 
+    autenticación, extendiendo la funcionalidad base de Django.
     """
-    class Role(models.TextChoices):
+    class Rol(models.TextChoices):
         ADMIN = 'ADMIN', 'Admin'
         MEDICO = 'MEDICO', 'Médico'
         PACIENTE = 'PACIENTE', 'Paciente'
         SECRETARIA = 'SECRETARIA', 'Secretaria'
 
-    # El campo 'Apellidos' se maneja con 'last_name' de AbstractUser.
-    # El campo 'Contraseña' es manejado por Django ('password').
-    # El campo 'ID_Usuario' es el 'id' automático de Django.
-    cedula = models.CharField(max_length=15, unique=True, help_text="Cédula asociada a la cuenta de usuario.") # [cite: 201]
-    roll = models.CharField(max_length=50, choices=Role.choices, help_text="Rol del usuario en el sistema.") # [cite: 201]
+    # Campos de AbstractUser ya incluidos: username, first_name, last_name, email, password, etc.
+    cedula = models.CharField(max_length=15, unique=True, help_text="Cédula de identidad del usuario.")
+    rol = models.CharField(max_length=50, choices=Rol.choices, default=Rol.PACIENTE, help_text="Rol del usuario en el sistema.")
+
+    # Previene conflictos con el modelo de usuario base de Django.
+    groups = models.ManyToManyField(
+        'auth.Group',
+        related_name='usuario_set',  # Nombre de acceso inverso único
+        blank=True,
+        help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.',
+        related_query_name='usuario',
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        related_name='usuario_set', # Nombre de acceso inverso único
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_query_name='usuario',
+    )
+
 
 class Paciente(models.Model):
-    """
-    [cite_start]Almacena la información personal de cada paciente. [cite: 172]
-    """
-    # ID_Paciente es el 'id' automático de Django. Se crea una relación uno a uno con el usuario.
+    """Almacena la información del perfil de un paciente."""
+    # Relación uno a uno que extiende el modelo Usuario. primary_key=True optimiza la relación.
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, primary_key=True)
-    # Nombre y Apellidos se obtienen del modelo Usuario vinculado.
-    fecha_nacimiento = models.DateField(help_text="Fecha de nacimiento del paciente.") # [cite: 173]
-    direccion = models.CharField(max_length=255, help_text="Dirección de residencia del paciente.") # [cite: 173]
-    telefono = models.CharField(max_length=20, help_text="Número de teléfono de contacto del paciente.") # [cite: 173]
-    # E-Mail se obtiene del modelo Usuario.
-    genero = models.CharField(max_length=15, help_text="Género del paciente.") # [cite: 173]
-    nacionalidad = models.CharField(max_length=50, help_text="Nacionalidad del paciente.") # [cite: 173]
+    # Nombre, Apellidos, Cédula y Email se obtienen del modelo Usuario.
+    fecha_nacimiento = models.DateField(help_text="Fecha de nacimiento del paciente.")
+    direccion = models.CharField(max_length=255, help_text="Dirección de residencia del paciente.")
+    telefono = models.CharField(max_length=20, help_text="Número de teléfono de contacto del paciente.")
+    genero = models.CharField(max_length=15, help_text="Género del paciente (ej. Masculino, Femenino).")
+    nacionalidad = models.CharField(max_length=50, help_text="Nacionalidad del paciente.")
     
     def __str__(self):
-        return f"{self.usuario.first_name} {self.usuario.last_name}"
+        # Accede a los campos del modelo Usuario relacionado.
+        return f"Paciente: {self.usuario.first_name} {self.usuario.last_name}"
+
 
 class Medico(models.Model):
-    """
-    [cite_start]Contiene la información de los médicos que trabajan en la clínica. [cite: 192]
-    """
-    # ID_Medico es el 'id' automático de Django. Se crea una relación uno a uno con el usuario.
+    """Contiene la información del perfil de un médico."""
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, primary_key=True)
-    # Nombre, Apellidos, Cedula, Telefono y E-Mail se obtienen del modelo Usuario.
-    tarifa_cons = models.DecimalField(max_digits=10, decimal_places=2, help_text="Costo de la consulta con el médico.") # [cite: 193]
-    id_especialidad = models.ForeignKey(Especialidad, on_delete=models.SET_NULL, null=True, help_text="Referencia a la especialidad del médico.") # [cite: 193]
-    id_consultorio = models.ForeignKey(Consultorio, on_delete=models.SET_NULL, null=True, help_text="Referencia al consultorio del médico.") # [cite: 193]
+    # Información personal (nombre, cédula, email) se hereda de Usuario.
+    tarifa_consulta = models.DecimalField(max_digits=10, decimal_places=2, help_text="Costo de la consulta con el médico.")
+    especialidad = models.ForeignKey(Especialidad, on_delete=models.SET_NULL, null=True, help_text="Especialidad del médico.")
+    consultorio = models.ForeignKey(Consultorio, on_delete=models.SET_NULL, null=True, help_text="Consultorio asignado al médico.")
 
     def __str__(self):
         return f"Dr. {self.usuario.first_name} {self.usuario.last_name}"
 
+
 class Secretaria(models.Model):
-    """
-    [cite_start]Almacena la información del personal de secretaría. [cite: 189]
-    """
-    # ID_Secre es el 'id' automático de Django. Se crea una relación uno a uno con el usuario.
+    """Almacena la información del perfil del personal de secretaría."""
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, primary_key=True)
-    # Nombre, Apellido, Cedula, Telefono y E-Mail se obtienen del modelo Usuario.
-    id_medico = models.ForeignKey(Medico, on_delete=models.CASCADE, help_text="Referencia al médico que asiste.") # [cite: 190]
+    # Información personal (nombre, cédula, email) se hereda de Usuario.
+    medico_asociado = models.ForeignKey(Medico, on_delete=models.SET_NULL, null=True, blank=True, help_text="Médico al que asiste la secretaria.")
 
     def __str__(self):
         return f"Secretaria: {self.usuario.first_name} {self.usuario.last_name}"
