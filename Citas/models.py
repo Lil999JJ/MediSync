@@ -28,9 +28,8 @@ class Cita(models.Model):
     ) #
 
     # Campos de la tabla Cita
-    fecha = models.DateField(help_text="Fecha programada para la cita.") # [cite: 182]
-    hora = models.TimeField(help_text="Hora programada para la cita.") # [cite: 182]
-    
+    fecha = models.DateField(help_text="Fecha programada para la cita.") 
+    hora = models.TimeField(help_text="Hora programada para la cita.") 
     # Campo adicional para gestionar el flujo de la cita.
     estado = models.CharField(
         max_length=20,
